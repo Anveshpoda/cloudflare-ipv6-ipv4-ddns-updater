@@ -7,13 +7,18 @@ auth_key=""                                        # Your API Token or Global AP
 zone_identifier=""                                 # Can be found in the "Overview" tab of your domain
 record_name=""                                     # Which record you want to be synced
 proxy=false                                        # Set the proxy to true or false
-
+record_type="A"   				# Set "A" for Ipv4 and "AAAA" for Ipv6
 
 
 ###########################################
-## Check if we have a public IP
+## Check if we have a public IP 
 ###########################################
-ip=$(curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com/)
+
+if [ "${record_type}" == "AAAA" ]; then
+  ip=$(curl -s https://ipv6.icanhazip.com/)
+else
+  ip=$(curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com/)
+fi
 
 if [ "${ip}" == "" ]; then 
   logger -s "DDNS Updater: No public IP found"
@@ -47,7 +52,10 @@ fi
 ###########################################
 ## Get existing IP
 ###########################################
-old_ip=$(echo "$record" | sed -E 's/.*"content":"(([0-9]{1,3}\.){3}[0-9]{1,3})".*/\1/')
+#old_ip=$(echo "$record" | sed -E 's/.*"content":"(([0-9]{1,3}\.){3}[0-9]{1,3})".*/\1/')
+
+old_ip=$(echo "$record" | jq -r '.result[0].content')
+
 # Compare if they're the same
 if [[ $ip == $old_ip ]]; then
   logger "DDNS Updater: IP ($ip) for ${record_name} has not changed."
@@ -66,7 +74,7 @@ update=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_identi
                      -H "X-Auth-Email: $auth_email" \
                      -H "$auth_header $auth_key" \
                      -H "Content-Type: application/json" \
-              --data "{\"id\":\"$zone_identifier\",\"type\":\"A\",\"proxied\":${proxy},\"name\":\"$record_name\",\"content\":\"$ip\"}")
+              --data "{\"id\":\"$zone_identifier\",\"type\":\"$record_type\",\"proxied\":${proxy},\"name\":\"$record_name\",\"content\":\"$ip\"}")
 
 ###########################################
 ## Report the status
@@ -79,3 +87,4 @@ case "$update" in
   logger "DDNS Updater: $ip $record_name DDNS updated."
   exit 0;;
 esac
+ac
